@@ -2,24 +2,33 @@ import time
 
 import httpx
 
+from app.config.loader import RetryConfig
 from app.models.errors import NonRetryableProviderError, RetryableProviderError
 from app.models.request import ChatRequest
 from app.models.response import ChatResponse, Choice, GatewayMeta, MessageOutput, UsageInfo
 from app.providers.base import BaseProvider
+from app.resilience.retry import build_retry_decorator
+from app.resilience.timeout import get_timeout
 
 
 class GroqAdapter(BaseProvider):
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, retry_config: RetryConfig | None = None):
         self.name = "groq"
         self.models = ["mixtral-8x7b-32768", "llama-3.1-8b-instant"]
         self.api_key = api_key
         self.base_url = "https://api.groq.com/openai/v1"
-        self.timeout_config = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=2.0)
+        self.timeout_config = get_timeout("groq")
+
+        _config = retry_config or RetryConfig()
+        self._retry = build_retry_decorator(_config)
 
     def get_timeout(self) -> float:
         return 10.0
 
     async def complete(self, request: ChatRequest) -> ChatResponse:
+        return await self._retry(self._do_complete)(request)
+
+    async def _do_complete(self, request: ChatRequest) -> ChatResponse:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

@@ -3,19 +3,25 @@ from typing import Any
 
 import httpx
 
+from app.config.loader import RetryConfig
 from app.models.errors import NonRetryableProviderError, RetryableProviderError
 from app.models.request import ChatRequest
 from app.models.response import ChatResponse, Choice, GatewayMeta, MessageOutput, UsageInfo
 from app.providers.base import BaseProvider
+from app.resilience.retry import build_retry_decorator
+from app.resilience.timeout import get_timeout
 
 
 class GeminiAdapter(BaseProvider):
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, retry_config: RetryConfig | None = None):
         self.name = "gemini"
         self.models = ["gemini-1.5-flash", "gemini-1.5-flash-8b"]
         self.api_key = api_key
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        self.timeout_config = httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=2.0)
+        self.timeout_config = get_timeout("gemini")
+
+        _config = retry_config or RetryConfig()
+        self._retry = build_retry_decorator(_config)
 
     def get_timeout(self) -> float:
         return 15.0
@@ -53,6 +59,9 @@ class GeminiAdapter(BaseProvider):
         return payload
 
     async def complete(self, request: ChatRequest) -> ChatResponse:
+        return await self._retry(self._do_complete)(request)
+
+    async def _do_complete(self, request: ChatRequest) -> ChatResponse:
         payload = self._transform_request(request)
 
         headers = {
