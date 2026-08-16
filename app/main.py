@@ -13,6 +13,11 @@ from app.api.middleware.request_id import RequestIDMiddleware
 from app.api.routes import admin, chat, health, models
 from app.config.loader import ConfigLoader
 from app.config.settings import Settings
+from app.providers.groq_adapter import GroqAdapter
+from app.providers.gemini_adapter import GeminiAdapter
+from app.resilience.circuit_breaker import CircuitBreaker
+from app.routing.router import Router
+from app.monitoring.metrics import init_metrics
 
 
 @asynccontextmanager
@@ -43,15 +48,42 @@ async def lifespan(app: FastAPI):
         logger.error("redis_connection_failed", error=str(e))
         raise
 
-    # Initialize placeholders for components to be built in subsequent tickets
-    app.state.providers = {}
-    app.state.circuit_breakers = {}
-    app.state.router = None
+    # Initialize actual components
+    providers = {
+        "groq": GroqAdapter(
+            api_key=settings.groq_api_key,
+            retry_config=config_loader.config.retry,
+        ),
+        "gemini": GeminiAdapter(
+            api_key=settings.gemini_api_key,
+            retry_config=config_loader.config.retry,
+        ),
+    }
+    app.state.providers = providers
+
+    circuit_breakers = {
+        name: CircuitBreaker(
+            provider=name,
+            config=config_loader.config.circuit_breaker,
+            redis=redis,
+        )
+        for name in providers
+    }
+    app.state.circuit_breakers = circuit_breakers
+
+    router = Router(
+        providers=providers,
+        circuit_breakers=circuit_breakers,
+        config_loader=config_loader,
+    )
+    app.state.router = router
+
     app.state.rate_limiter = None
     app.state.audit_logger = None
     app.state.cost_tracker = None
 
-    # Call init_metrics() once implemented (LG-013)
+    # Call init_metrics() (LG-013)
+    init_metrics()
 
     yield
 
