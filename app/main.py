@@ -13,11 +13,26 @@ from app.api.middleware.request_id import RequestIDMiddleware
 from app.api.routes import admin, chat, health, models
 from app.config.loader import ConfigLoader
 from app.config.settings import Settings
+from fastapi.responses import JSONResponse
 from app.providers.groq_adapter import GroqAdapter
 from app.providers.gemini_adapter import GeminiAdapter
 from app.resilience.circuit_breaker import CircuitBreaker
 from app.routing.router import Router
 from app.monitoring.metrics import init_metrics
+from app.models.errors import GatewayError
+from app.rate_limit.limiter import RateLimiter
+
+
+async def gateway_error_handler(request, exc: GatewayError) -> JSONResponse:
+    content = {
+        "error": {
+            "code": exc.code,
+            "message": exc.message,
+            "type": exc.error_type,
+            **exc.extra,
+        }
+    }
+    return JSONResponse(status_code=exc.http_status, content=content)
 
 
 @asynccontextmanager
@@ -78,7 +93,10 @@ async def lifespan(app: FastAPI):
     )
     app.state.router = router
 
-    app.state.rate_limiter = None
+    app.state.rate_limiter = RateLimiter(
+        redis=redis,
+        config=config_loader.config.rate_limit,
+    )
     app.state.audit_logger = None
     app.state.cost_tracker = None
 
@@ -94,6 +112,9 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="LLM Gateway", lifespan=lifespan)
+
+    # Register Exception Handlers
+    app.add_exception_handler(GatewayError, gateway_error_handler)
 
     # Middleware (order matters - last added runs first)
     app.add_middleware(
