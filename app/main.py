@@ -22,6 +22,7 @@ from app.monitoring.metrics import init_metrics
 from app.models.errors import GatewayError
 from app.rate_limit.limiter import RateLimiter
 from app.audit.logger import AuditLogger
+from app.cost.tracker import CostTracker
 
 
 async def gateway_error_handler(request, exc: GatewayError) -> JSONResponse:
@@ -102,7 +103,7 @@ async def lifespan(app: FastAPI):
         redis=redis,
         config=config_loader.config.audit,
     )
-    app.state.cost_tracker = None
+    app.state.cost_tracker = CostTracker(redis=redis)
 
     # Call init_metrics() (LG-013)
     init_metrics()
