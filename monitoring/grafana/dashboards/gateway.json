@@ -1,0 +1,111 @@
+{
+  "title": "LLM Gateway",
+  "uid": "llm-gateway",
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "title": "Request Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "rate(gateway_requests_total[1m])",
+          "legendFormat": "{{provider}} - {{model}} ({{status}})"
+        }
+      ]
+    },
+    {
+      "title": "Latency p95",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(gateway_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{provider}} p95"
+        }
+      ]
+    },
+    {
+      "title": "Provider Success Rate",
+      "type": "gauge",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(gateway_provider_requests_total{outcome='success'}[5m])) / sum by (provider) (rate(gateway_provider_requests_total[5m]))",
+          "legendFormat": "{{provider}}"
+        }
+      ]
+    },
+    {
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "gateway_circuit_breaker_state",
+          "legendFormat": "{{provider}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "CLOSED",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "OPEN",
+                  "color": "red"
+                },
+                "2": {
+                  "text": "HALF_OPEN",
+                  "color": "yellow"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Token Usage Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (provider, type) (rate(gateway_tokens_total[5m]))",
+          "legendFormat": "{{provider}} {{type}}"
+        }
+      ]
+    }
+  ]
+}
