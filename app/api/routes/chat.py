@@ -54,6 +54,7 @@ async def chat_completions(
     latency_ms = int((time.time() - start_time) * 1000)
     latency_secs = latency_ms / 1000.0
     provider_used = response.x_gateway.provider_used
+    response.x_gateway.latency_ms = latency_ms
     request_count.labels(provider=provider_used, model=response.model, status="success").inc()
     request_latency.labels(provider=provider_used, model=response.model).observe(latency_secs)
 
