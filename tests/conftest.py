@@ -36,7 +36,7 @@ async def async_client(fake_redis):
     with patch("redis.asyncio.from_url", return_value=fake_redis):
         async with app.router.lifespan_context(app):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as client:
                 client.app = app
                 yield client
 

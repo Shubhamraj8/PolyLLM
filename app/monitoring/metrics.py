@@ -46,9 +46,10 @@ tokens_used = Counter(
 
 def init_metrics() -> None:
     """
-    Called once during app lifespan startup to ensure all metric objects
-    are instantiated and registered with the Prometheus default registry.
-    Already done by module-level definitions above — this is a no-op hook
-    kept for clarity and forward-compatibility.
+    Called once during app lifespan startup.
+    Initialises circuit_breaker_state gauge to 0 (CLOSED) for all known
+    providers so Grafana shows green from the first scrape, even before
+    any state transition has occurred.
     """
-    pass
+    for provider in ("groq", "gemini"):
+        circuit_breaker_state.labels(provider=provider).set(0)
