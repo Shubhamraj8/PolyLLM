@@ -13,6 +13,7 @@ from app.models.errors import AllProvidersFailedError, RateLimitError
 from app.models.request import ChatRequest
 from app.models.response import ChatResponse
 from app.monitoring.metrics import request_count, request_latency
+from app.utils.network import get_client_ip
 
 router = APIRouter()
 
@@ -27,7 +28,7 @@ async def chat_completions(
     audit_logger=Depends(get_audit_logger),
     cost_tracker=Depends(get_cost_tracker),
 ):
-    ip = request.client.host
+    ip = get_client_ip(request)
     request_id = request.state.request_id
     start_time = time.time()
 

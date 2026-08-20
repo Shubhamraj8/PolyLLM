@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from prometheus_client import make_asgi_app
 
+from app.api.middleware.content_size import ContentSizeLimitMiddleware
 from app.api.middleware.logging import LoggingMiddleware
 from app.api.middleware.request_id import RequestIDMiddleware
 from app.api.routes import admin, chat, health, models
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(ContentSizeLimitMiddleware)
 
     # Routers
     app.include_router(chat.router, prefix="/v1")

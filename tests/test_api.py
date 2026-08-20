@@ -145,10 +145,16 @@ async def test_api_health_endpoint(async_client):
 
 
 @pytest.mark.asyncio
-async def test_api_admin_reload_endpoint(async_client):
-    r = await async_client.post("/admin/reload")
-    assert r.status_code == 200
-    data = r.json()
+async def test_api_admin_reload_requires_auth(async_client):
+    # Unauthenticated should return 401
+    r_unauth = await async_client.post("/admin/reload")
+    assert r_unauth.status_code == 401
+
+    # Authenticated should return 200
+    headers = {"X-API-Key": "dev-key"}
+    r_auth = await async_client.post("/admin/reload", headers=headers)
+    assert r_auth.status_code == 200
+    data = r_auth.json()
     assert data["status"] == "reloaded"
 
 
@@ -159,3 +165,15 @@ async def test_api_models_endpoint(async_client):
     data = r.json()
     assert data["object"] == "list"
     assert len(data["data"]) >= 4
+
+
+@pytest.mark.asyncio
+async def test_api_payload_too_large_returns_413(async_client):
+    headers = {
+        "X-API-Key": "dev-key",
+        "Content-Length": str(15 * 1024 * 1024),  # 15 MB header
+    }
+    r = await async_client.post(
+        "/v1/chat/completions", headers=headers, json={"model": "gpt-4", "messages": []}
+    )
+    assert r.status_code == 413
