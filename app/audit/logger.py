@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -34,7 +35,7 @@ class AuditLogger:
         entry = {
             "request_id": request_id,
             "timestamp": _utcnow(),
-            "ip": ip,
+            "ip": _anonymize_ip(ip),
             "api_key_prefix": _mask_key(api_key),
             "model_requested": body.model,
             "provider_used": meta.provider_used,
@@ -70,7 +71,7 @@ class AuditLogger:
         entry = {
             "request_id": request_id,
             "timestamp": _utcnow(),
-            "ip": ip,
+            "ip": _anonymize_ip(ip),
             "api_key_prefix": _mask_key(api_key),
             "model_requested": body.model,
             "provider_used": None,
@@ -104,3 +105,9 @@ def _utcnow() -> str:
 
 def _mask_key(api_key: str) -> str:
     return api_key[:8] + "..."
+
+
+def _anonymize_ip(ip: str) -> str:
+    if not ip:
+        return "unknown"
+    return hashlib.sha256(ip.encode()).hexdigest()[:16]

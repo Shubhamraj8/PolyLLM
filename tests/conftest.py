@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import fakeredis.aioredis
@@ -6,6 +7,9 @@ import pytest
 import pytest_asyncio
 import respx
 from httpx import ASGITransport, AsyncClient
+
+os.environ.setdefault("GROQ_API_KEY", "mock-groq-key")
+os.environ.setdefault("GEMINI_API_KEY", "mock-gemini-key")
 
 from app.main import create_app
 
