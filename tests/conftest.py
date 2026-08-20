@@ -1,9 +1,11 @@
+from unittest.mock import patch
+
+import fakeredis.aioredis
+import httpx
 import pytest
 import pytest_asyncio
-import fakeredis.aioredis
 import respx
-import httpx
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
 
@@ -12,12 +14,16 @@ GROQ_SUCCESS_RESPONSE = {
     "object": "chat.completion",
     "created": 1728000000,
     "model": "mixtral-8x7b-32768",
-    "choices": [{"index": 0, "message": {"role": "assistant", "content": "Hello!"}, "finish_reason": "stop"}],
+    "choices": [
+        {"index": 0, "message": {"role": "assistant", "content": "Hello!"}, "finish_reason": "stop"}
+    ],
     "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 }
 
 GEMINI_SUCCESS_RESPONSE = {
-    "candidates": [{"content": {"parts": [{"text": "Hello!"}], "role": "model"}, "finishReason": "STOP"}],
+    "candidates": [
+        {"content": {"parts": [{"text": "Hello!"}], "role": "model"}, "finishReason": "STOP"}
+    ],
     "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5},
 }
 
@@ -27,16 +33,15 @@ def fake_redis():
     return fakeredis.aioredis.FakeRedis(decode_responses=True)
 
 
-from unittest.mock import patch
-
-
 @pytest_asyncio.fixture
 async def async_client(fake_redis):
     app = create_app()
     with patch("redis.asyncio.from_url", return_value=fake_redis):
         async with app.router.lifespan_context(app):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test", follow_redirects=True
+            ) as client:
                 client.app = app
                 yield client
 

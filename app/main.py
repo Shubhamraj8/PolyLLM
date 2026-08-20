@@ -5,24 +5,24 @@ from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from loguru import logger
 from prometheus_client import make_asgi_app
 
 from app.api.middleware.logging import LoggingMiddleware
 from app.api.middleware.request_id import RequestIDMiddleware
 from app.api.routes import admin, chat, health, models
+from app.audit.logger import AuditLogger
 from app.config.loader import ConfigLoader
 from app.config.settings import Settings
-from fastapi.responses import JSONResponse
-from app.providers.groq_adapter import GroqAdapter
+from app.cost.tracker import CostTracker
+from app.models.errors import GatewayError
+from app.monitoring.metrics import init_metrics
 from app.providers.gemini_adapter import GeminiAdapter
+from app.providers.groq_adapter import GroqAdapter
+from app.rate_limit.limiter import RateLimiter
 from app.resilience.circuit_breaker import CircuitBreaker
 from app.routing.router import Router
-from app.monitoring.metrics import init_metrics
-from app.models.errors import GatewayError
-from app.rate_limit.limiter import RateLimiter
-from app.audit.logger import AuditLogger
-from app.cost.tracker import CostTracker
 
 
 async def gateway_error_handler(request, exc: GatewayError) -> JSONResponse:

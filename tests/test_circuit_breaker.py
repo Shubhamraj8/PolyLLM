@@ -1,7 +1,7 @@
-import time
 from unittest.mock import patch
 
 import pytest
+
 from app.config.loader import CircuitBreakerConfig
 from app.resilience.circuit_breaker import CBState, CircuitBreaker
 
@@ -96,7 +96,7 @@ async def test_half_open_plus_failure_reopens(cb):
 async def test_failures_outside_window_do_not_accumulate(cb, fake_redis):
     await cb.record_failure()
     await cb.record_failure()
-    
+
     # Manually delete key to simulate window TTL expiry
     await fake_redis.delete(cb._key_failures)
 

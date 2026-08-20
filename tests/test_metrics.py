@@ -10,13 +10,14 @@ Covers acceptance criteria:
   - tokens_used increments after a request
   - provider_requests{outcome="skipped"} increments when CB is open
 """
+
+import httpx
 import pytest
 import respx
-import httpx
 from prometheus_client import REGISTRY
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _get_sample(metric_name: str, **labels) -> float | None:
     """Return the current value of a metric sample by name + labels, or None."""
@@ -30,8 +31,10 @@ def _get_sample(metric_name: str, **labels) -> float | None:
 
 # ── Unit: init_metrics sets CB state to 0 ────────────────────────────────────
 
+
 def test_init_metrics_sets_cb_state_to_zero():
-    from app.monitoring.metrics import init_metrics, circuit_breaker_state
+    from app.monitoring.metrics import circuit_breaker_state, init_metrics
+
     init_metrics()
     for provider in ("groq", "gemini"):
         val = circuit_breaker_state.labels(provider=provider)._value.get()
@@ -40,15 +43,18 @@ def test_init_metrics_sets_cb_state_to_zero():
 
 # ── Unit: circuit_breaker_state gauge transitions ────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_cb_state_gauge_opens(fake_redis):
     from app.config.loader import CircuitBreakerConfig
     from app.resilience.circuit_breaker import CircuitBreaker
+
     config = CircuitBreakerConfig(failure_threshold=1, window_seconds=60, cooldown_seconds=30)
     cb = CircuitBreaker(provider="groq", config=config, redis=fake_redis)
 
     # On startup: CLOSED = 0
     from app.monitoring.metrics import circuit_breaker_state
+
     circuit_breaker_state.labels(provider="groq").set(0)
 
     # Trigger failure -> opens CB
@@ -61,7 +67,8 @@ async def test_cb_state_gauge_opens(fake_redis):
 @pytest.mark.asyncio
 async def test_cb_state_gauge_closes_after_probe(fake_redis):
     from app.config.loader import CircuitBreakerConfig
-    from app.resilience.circuit_breaker import CircuitBreaker, CBState
+    from app.resilience.circuit_breaker import CBState, CircuitBreaker
+
     config = CircuitBreakerConfig(failure_threshold=1, window_seconds=60, cooldown_seconds=30)
     cb = CircuitBreaker(provider="groq", config=config, redis=fake_redis)
 
@@ -70,11 +77,13 @@ async def test_cb_state_gauge_closes_after_probe(fake_redis):
     await cb.record_success()
 
     from app.monitoring.metrics import circuit_breaker_state
+
     val = circuit_breaker_state.labels(provider="groq")._value.get()
     assert val == 0.0  # CLOSED
 
 
 # ── Integration: /metrics endpoint ───────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_metrics_endpoint_returns_200(async_client):
@@ -86,6 +95,7 @@ async def test_metrics_endpoint_returns_200(async_client):
 @pytest.mark.asyncio
 async def test_metrics_contains_histogram_buckets(async_client):
     from tests.conftest import GROQ_SUCCESS_RESPONSE
+
     # Must make at least one request so the histogram emits bucket lines
     with respx.mock as mock:
         mock.post("https://api.groq.com/openai/v1/chat/completions").mock(
@@ -109,6 +119,7 @@ async def test_metrics_contains_cb_state(async_client):
 
 # ── Integration: request flow increments counters ────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_request_count_increments_on_success(async_client):
     from tests.conftest import GROQ_SUCCESS_RESPONSE
@@ -125,7 +136,7 @@ async def test_request_count_increments_on_success(async_client):
     assert r.status_code == 200
 
     r_metrics = await async_client.get("/metrics")
-    assert 'gateway_requests_total{' in r_metrics.text
+    assert "gateway_requests_total{" in r_metrics.text
     assert 'status="success"' in r_metrics.text
 
 

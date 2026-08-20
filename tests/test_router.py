@@ -1,15 +1,18 @@
+import json
+
+import httpx
 import pytest
 import respx
-import httpx
-import json
-from app.models.request import ChatRequest, Message
+
 from app.models.errors import AllProvidersFailedError
+from app.models.request import ChatRequest, Message
 from app.resilience.circuit_breaker import CBState
 
 
 @pytest.mark.asyncio
 async def test_model_mapping(async_client):
     from tests.conftest import GROQ_SUCCESS_RESPONSE
+
     router = async_client.app.state.router
 
     with respx.mock as mock:
@@ -17,10 +20,7 @@ async def test_model_mapping(async_client):
             return_value=httpx.Response(200, json=GROQ_SUCCESS_RESPONSE)
         )
 
-        req = ChatRequest(
-            model="gpt-4",
-            messages=[Message(role="user", content="hello")]
-        )
+        req = ChatRequest(model="gpt-4", messages=[Message(role="user", content="hello")])
         res = await router.route(req, request_id="test-id")
         assert res.x_gateway.provider_used == "groq"
 
@@ -33,6 +33,7 @@ async def test_model_mapping(async_client):
 @pytest.mark.asyncio
 async def test_fallback_triggered(async_client):
     from tests.conftest import GEMINI_SUCCESS_RESPONSE
+
     router = async_client.app.state.router
 
     with respx.mock as mock:
@@ -44,10 +45,7 @@ async def test_fallback_triggered(async_client):
             return_value=httpx.Response(200, json=GEMINI_SUCCESS_RESPONSE)
         )
 
-        req = ChatRequest(
-            model="gpt-4",
-            messages=[Message(role="user", content="hello")]
-        )
+        req = ChatRequest(model="gpt-4", messages=[Message(role="user", content="hello")])
         res = await router.route(req, request_id="test-id")
 
         assert res.x_gateway.provider_used == "gemini"
@@ -60,6 +58,7 @@ async def test_fallback_triggered(async_client):
 @pytest.mark.asyncio
 async def test_groq_cb_open_routes_to_gemini(async_client):
     from tests.conftest import GEMINI_SUCCESS_RESPONSE
+
     router = async_client.app.state.router
 
     with respx.mock as mock:
@@ -75,10 +74,7 @@ async def test_groq_cb_open_routes_to_gemini(async_client):
         groq_cb = router.circuit_breakers["groq"]
         await groq_cb._set_state(CBState.OPEN)
 
-        req = ChatRequest(
-            model="gpt-4",
-            messages=[Message(role="user", content="hello")]
-        )
+        req = ChatRequest(model="gpt-4", messages=[Message(role="user", content="hello")])
         res = await router.route(req, request_id="test-id")
 
         # Groq should be skipped entirely, routing directly to Gemini
@@ -103,10 +99,7 @@ async def test_all_providers_failed(async_client):
             return_value=httpx.Response(500)
         )
 
-        req = ChatRequest(
-            model="gpt-4",
-            messages=[Message(role="user", content="hello")]
-        )
+        req = ChatRequest(model="gpt-4", messages=[Message(role="user", content="hello")])
 
         with pytest.raises(AllProvidersFailedError) as exc_info:
             await router.route(req, request_id="test-id")

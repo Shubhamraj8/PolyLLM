@@ -1,9 +1,11 @@
 import json
+
 import pytest
+
 from app.audit.logger import AuditLogger, _mask_key
 from app.config.loader import AuditConfig
 from app.models.request import ChatRequest, Message
-from app.models.response import ChatResponse, GatewayMeta, UsageInfo, Choice, MessageOutput
+from app.models.response import ChatResponse, Choice, GatewayMeta, MessageOutput, UsageInfo
 
 
 def _make_response(provider="groq", fallback=False, providers_tried=None):
@@ -11,7 +13,11 @@ def _make_response(provider="groq", fallback=False, providers_tried=None):
         id="chatcmpl-test",
         created=1728000000,
         model="mixtral-8x7b-32768",
-        choices=[Choice(index=0, message=MessageOutput(role="assistant", content="Hi"), finish_reason="stop")],
+        choices=[
+            Choice(
+                index=0, message=MessageOutput(role="assistant", content="Hi"), finish_reason="stop"
+            )
+        ],
         usage=UsageInfo(prompt_tokens=10, completion_tokens=5, total_tokens=15),
         x_gateway=GatewayMeta(
             provider_used=provider,
@@ -50,10 +56,23 @@ async def test_log_success_redis_entry(fake_redis):
     entry = json.loads(raw)
 
     required_fields = [
-        "request_id", "timestamp", "ip", "api_key_prefix", "model_requested",
-        "provider_used", "model_used", "fallback_triggered", "providers_tried",
-        "status", "http_status", "latency_ms", "prompt_tokens", "completion_tokens",
-        "total_tokens", "estimated_cost_usd", "error",
+        "request_id",
+        "timestamp",
+        "ip",
+        "api_key_prefix",
+        "model_requested",
+        "provider_used",
+        "model_used",
+        "fallback_triggered",
+        "providers_tried",
+        "status",
+        "http_status",
+        "latency_ms",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "estimated_cost_usd",
+        "error",
     ]
     for field in required_fields:
         assert field in entry, f"Missing field: {field}"

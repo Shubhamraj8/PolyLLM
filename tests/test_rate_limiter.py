@@ -1,8 +1,9 @@
+import httpx
 import pytest
 import respx
-import httpx
+
+from app.config.loader import RateLimitBucketConfig, RateLimitConfig
 from app.rate_limit.limiter import RateLimiter
-from app.config.loader import RateLimitConfig, RateLimitBucketConfig
 
 
 @pytest.mark.asyncio
@@ -93,10 +94,7 @@ async def test_limiter_api_endpoint(async_client):
         )
 
         headers = {"X-API-Key": "dev-key"}
-        payload = {
-            "model": "gpt-4",
-            "messages": [{"role": "user", "content": "hello"}]
-        }
+        payload = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
 
         # Override rate limiter config inside app to low values for easy testing
         limiter = async_client.app.state.rate_limiter

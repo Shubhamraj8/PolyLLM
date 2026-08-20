@@ -1,9 +1,17 @@
 import time
+
 from fastapi import APIRouter, Depends, Request, Security
+
+from app.dependencies import (
+    get_api_key,
+    get_audit_logger,
+    get_cost_tracker,
+    get_rate_limiter,
+    get_router,
+)
+from app.models.errors import AllProvidersFailedError, RateLimitError
 from app.models.request import ChatRequest
 from app.models.response import ChatResponse
-from app.dependencies import get_api_key, get_rate_limiter, get_router, get_audit_logger, get_cost_tracker
-from app.models.errors import RateLimitError, AllProvidersFailedError
 from app.monitoring.metrics import request_count, request_latency
 
 router = APIRouter()

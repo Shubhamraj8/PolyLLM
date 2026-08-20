@@ -1,8 +1,11 @@
+from datetime import UTC
+
 import pytest
+
 from app.cost.tracker import CostTracker, calculate_cost
 
-
 # -- Unit: pricing logic --------------------------------------------------------
+
 
 def test_groq_cost_is_zero():
     cost = calculate_cost("groq", "mixtral-8x7b-32768", 100, 50)
@@ -32,6 +35,7 @@ def test_unknown_provider_defaults_to_zero():
 
 
 # -- Integration: Redis key writes ----------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_record_increments_cost_total(fake_redis):
@@ -75,8 +79,9 @@ async def test_record_daily_key_has_ttl(fake_redis):
     tracker = CostTracker(redis=fake_redis)
     await tracker.record("groq", "mixtral-8x7b-32768", 100, 50)
 
-    from datetime import datetime, timezone
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    from datetime import datetime
+
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     ttl = await fake_redis.ttl(f"cost:daily:{today}")
     # TTL should be set (30 days = 2592000s); fakeredis should return > 0
     assert ttl > 0
