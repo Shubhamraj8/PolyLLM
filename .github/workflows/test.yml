@@ -38,3 +38,7 @@ jobs:
       - name: Run Black
         run: |
           black --check .
+
+      - name: Run Dependency Audit
+        run: |
+          pip-audit --local || true
