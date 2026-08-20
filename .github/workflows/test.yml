@@ -25,6 +25,9 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run Pytest
+        env:
+          GROQ_API_KEY: mock-groq-key
+          GEMINI_API_KEY: mock-gemini-key
         run: |
           pytest tests/ -v --cov=app --cov-report=term-missing
 
