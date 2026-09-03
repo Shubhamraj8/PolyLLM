@@ -199,7 +199,30 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-**Response (200 OK):**
+**Streaming Request (`"stream": true`):**
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-secret-gateway-key" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Tell me a joke."}],
+    "stream": true
+  }'
+```
+
+**Streaming Response (`Content-Type: text/event-stream`):**
+```http
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1728000000,"model":"mixtral-8x7b-32768","choices":[{"index":0,"delta":{"role":"assistant","content":"Why"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1728000000,"model":"mixtral-8x7b-32768","choices":[{"index":0,"delta":{"content":" did..."},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-req-7f3a2b","object":"chat.completion.chunk","created":1728000000,"model":"gpt-4","choices":[],"x_gateway":{"provider_used":"groq","model_used":"mixtral-8x7b-32768","latency_ms":210,"request_id":"req-7f3a2b","fallback_triggered":false,"providers_tried":["groq"],"estimated_cost_usd":0.0}}
+
+data: [DONE]
+```
+
+**Response (200 OK - Non-Streaming):**
 ```json
 {
   "id": "chatcmpl-abc123",
@@ -227,6 +250,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }
 }
 ```
+
 
 ### Model Aliases
 
@@ -363,7 +387,20 @@ pip install -r requirements-dev.txt
 pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
+### ⚡ OpenAI SDK Smoke Test
+
+Verify full OpenAI SDK compatibility (streaming + non-streaming) against a running server:
+
+```bash
+# Start local gateway
+uvicorn app.main:app --reload --port 8000
+
+# Run smoke test script
+python scripts/smoke_test.py
+```
+
 **Current test results:**
+
 
 ```
 64 passed in 17s
