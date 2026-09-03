@@ -178,6 +178,8 @@ docker-compose -f docker-compose.full.yml up --build -d
 ## 🔌 API Reference
 
 All routes follow the OpenAI specification. Requests require the `X-API-Key` header.
+A pre-configured **Postman Collection** is available in [`docs/PolyLLM.postman_collection.json`](docs/PolyLLM.postman_collection.json) (see [docs/README.md](docs/README.md) for import instructions).
+
 
 ### POST `/v1/chat/completions`
 
