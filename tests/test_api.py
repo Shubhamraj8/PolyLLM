@@ -177,3 +177,69 @@ async def test_api_payload_too_large_returns_413(async_client):
         "/v1/chat/completions", headers=headers, json={"model": "gpt-4", "messages": []}
     )
     assert r.status_code == 413
+
+
+@pytest.mark.asyncio
+async def test_api_chat_completions_streaming_happy_path(async_client):
+    groq_sse = (
+        'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1700000000,"model":"mixtral-8x7b-32768","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}\n\n'
+        'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1700000000,"model":"mixtral-8x7b-32768","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":"stop"}]}\n\n'
+    )
+    with respx.mock:
+        respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+            return_value=httpx.Response(
+                200,
+                headers={"Content-Type": "text/event-stream"},
+                text=groq_sse,
+            )
+        )
+
+        headers = {"X-API-Key": "dev-key"}
+        payload = {
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+
+        r = await async_client.post("/v1/chat/completions", headers=headers, json=payload)
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+
+        body_text = r.text
+        assert "data: {" in body_text
+        assert "data: [DONE]" in body_text
+        assert "provider_used" in body_text
+
+
+@pytest.mark.asyncio
+async def test_api_chat_completions_streaming_fallback(async_client):
+    gemini_sse = (
+        'data: {"candidates": [{"content": {"parts": [{"text": "Streamed from Gemini"}]}}]}\n\n'
+    )
+    with respx.mock:
+        respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+            return_value=httpx.Response(500)
+        )
+        respx.post(url__regex=r"https://generativelanguage\.googleapis\.com/.*").mock(
+            return_value=httpx.Response(
+                200,
+                headers={"Content-Type": "text/event-stream"},
+                text=gemini_sse,
+            )
+        )
+
+        headers = {"X-API-Key": "dev-key"}
+        payload = {
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+
+        r = await async_client.post("/v1/chat/completions", headers=headers, json=payload)
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+
+        body_text = r.text
+        assert "Streamed from Gemini" in body_text
+        assert "gemini" in body_text
+        assert "fallback_triggered" in body_text

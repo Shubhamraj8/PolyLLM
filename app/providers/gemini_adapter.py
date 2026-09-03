@@ -1,4 +1,6 @@
+import json
 import time
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
@@ -6,7 +8,16 @@ import httpx
 from app.config.loader import RetryConfig
 from app.models.errors import NonRetryableProviderError, RetryableProviderError
 from app.models.request import ChatRequest
-from app.models.response import ChatResponse, Choice, GatewayMeta, MessageOutput, UsageInfo
+from app.models.response import (
+    ChatCompletionChunk,
+    ChatResponse,
+    Choice,
+    ChunkChoice,
+    DeltaMessage,
+    GatewayMeta,
+    MessageOutput,
+    UsageInfo,
+)
 from app.providers.base import BaseProvider
 from app.resilience.retry import build_retry_decorator
 from app.resilience.timeout import get_timeout
@@ -60,6 +71,94 @@ class GeminiAdapter(BaseProvider):
 
     async def complete(self, request: ChatRequest) -> ChatResponse:
         return await self._retry(self._do_complete)(request)
+
+    async def complete_stream(self, request: ChatRequest) -> AsyncGenerator[str, None]:
+        response = await self._retry(self._do_start_stream)(request)
+        start_time = int(time.time())
+
+        async def _generator() -> AsyncGenerator[str, None]:
+            first_chunk = True
+            try:
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    json_str = line[6:].strip()
+                    if not json_str:
+                        continue
+                    try:
+                        data = json.loads(json_str)
+                    except Exception:
+                        continue
+
+                    candidates = data.get("candidates", [])
+                    text = ""
+                    finish_reason = None
+                    if candidates:
+                        cand = candidates[0]
+                        parts = cand.get("content", {}).get("parts", [])
+                        text = "".join([p.get("text", "") for p in parts])
+                        raw_finish = cand.get("finishReason")
+                        if raw_finish:
+                            finish_reason = raw_finish.lower()
+
+                    delta_role = "assistant" if first_chunk else None
+                    first_chunk = False
+
+                    chunk = ChatCompletionChunk(
+                        id=f"gemini-{start_time}",
+                        created=start_time,
+                        model=request.model,
+                        choices=[
+                            ChunkChoice(
+                                index=0,
+                                delta=DeltaMessage(
+                                    role=delta_role,
+                                    content=text if text else None,
+                                ),
+                                finish_reason=finish_reason,
+                            )
+                        ],
+                    )
+                    yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+            finally:
+                await response.aclose()
+
+        return _generator()
+
+    async def _do_start_stream(self, request: ChatRequest) -> httpx.Response:
+        payload = self._transform_request(request)
+        headers = {"Content-Type": "application/json"}
+        url = f"{self.base_url}/models/{request.model}:streamGenerateContent?key={self.api_key}&alt=sse"
+
+        client = httpx.AsyncClient(timeout=self.timeout_config)
+        try:
+            req = client.build_request(
+                "POST",
+                url,
+                headers=headers,
+                json=payload,
+            )
+            response = await client.send(req, stream=True)
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
+            await client.aclose()
+            raise RetryableProviderError(f"Gemini network error: {str(e)}")
+        except Exception:
+            await client.aclose()
+            raise
+
+        if response.status_code in (429, 500, 502, 503, 504):
+            await response.aclose()
+            raise RetryableProviderError(f"Gemini retryable error: {response.text}")
+
+        if response.status_code in (400, 401, 403, 404):
+            await response.aclose()
+            raise NonRetryableProviderError(f"Gemini non-retryable error: {response.text}")
+
+        if response.is_error:
+            await response.aclose()
+            response.raise_for_status()
+
+        return response
 
     async def _do_complete(self, request: ChatRequest) -> ChatResponse:
         payload = self._transform_request(request)

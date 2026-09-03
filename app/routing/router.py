@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from loguru import logger
@@ -103,6 +104,74 @@ class Router:
                 continue
 
         # If all configured/tried providers failed
+        raise AllProvidersFailedError(
+            message="All providers failed in the routing chain.",
+            providers_tried=providers_tried,
+        )
+
+    async def route_stream(
+        self, request: ChatRequest, request_id: str
+    ) -> tuple[AsyncGenerator[str, None], dict[str, Any]]:
+        """
+        Routes the ChatRequest through the fallback chain for streaming responses.
+
+        Checks circuit breaker, maps model, initializes stream from provider.
+        If initial connection fails, records CB failure and tries next provider.
+        """
+        chain = self.config_loader.get_chain()
+        providers_tried = []
+        fallback_triggered = False
+
+        for idx, provider_name in enumerate(chain):
+            provider = self.providers.get(provider_name)
+            cb = self.circuit_breakers.get(provider_name)
+
+            if not provider or not cb:
+                logger.warning("router_invalid_provider_in_chain", provider=provider_name)
+                continue
+
+            if await cb.is_open():
+                logger.warning("router_provider_skipped_cb_open", provider=provider_name)
+                provider_requests.labels(provider=provider_name, outcome="skipped").inc()
+                continue
+
+            providers_tried.append(provider_name)
+            fallback_triggered = idx > 0
+            mapped_model = self._map_model(request.model, provider_name, provider)
+            adapted_request = request.model_copy(update={"model": mapped_model})
+
+            try:
+                logger.info(
+                    "router_attempting_provider_stream",
+                    provider=provider_name,
+                    model=mapped_model,
+                    request_id=request_id,
+                )
+                stream_gen = await provider.complete_stream(adapted_request)
+
+                await cb.record_success()
+                provider_requests.labels(provider=provider_name, outcome="success").inc()
+
+                meta = {
+                    "provider_used": provider_name,
+                    "model_used": mapped_model,
+                    "request_id": request_id,
+                    "fallback_triggered": fallback_triggered,
+                    "providers_tried": providers_tried,
+                }
+                return stream_gen, meta
+
+            except Exception as e:
+                logger.warning(
+                    "router_provider_stream_failed",
+                    provider=provider_name,
+                    error=str(e),
+                    request_id=request_id,
+                )
+                await cb.record_failure()
+                provider_requests.labels(provider=provider_name, outcome="failure").inc()
+                continue
+
         raise AllProvidersFailedError(
             message="All providers failed in the routing chain.",
             providers_tried=providers_tried,

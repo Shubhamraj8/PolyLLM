@@ -80,3 +80,26 @@ async def test_groq_timeout_raises_retryable(groq_adapter, sample_request):
         )
         with pytest.raises(RetryableProviderError):
             await groq_adapter.complete(sample_request)
+
+
+@pytest.mark.asyncio
+async def test_groq_complete_stream(groq_adapter, sample_request):
+    sse_body = (
+        'data: {"id":"1","choices":[{"delta":{"content":"Hi"}}]}\n\n'
+        'data: {"id":"1","choices":[{"delta":{"content":"!"}}]}\n\n'
+        "data: [DONE]\n\n"
+    )
+    with respx.mock:
+        respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+            return_value=httpx.Response(
+                200,
+                headers={"Content-Type": "text/event-stream"},
+                text=sse_body,
+            )
+        )
+        stream_gen = await groq_adapter.complete_stream(sample_request)
+        chunks = [chunk async for chunk in stream_gen]
+
+        assert len(chunks) == 3
+        assert 'data: {"id":"1"' in chunks[0]
+        assert "data: [DONE]" in chunks[2]

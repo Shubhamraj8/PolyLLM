@@ -73,3 +73,26 @@ async def test_gemini_400_raises_non_retryable(gemini_adapter):
         )
         with pytest.raises(NonRetryableProviderError):
             await gemini_adapter.complete(req)
+
+
+@pytest.mark.asyncio
+async def test_gemini_complete_stream(gemini_adapter):
+    req = ChatRequest(model="gemini-1.5-flash", messages=[Message(role="user", content="hi")])
+    gemini_sse = (
+        'data: {"candidates": [{"content": {"parts": [{"text": "Hello"}]}}]}\n\n'
+        'data: {"candidates": [{"content": {"parts": [{"text": " World!"}]}, "finishReason": "STOP"}]}\n\n'
+    )
+    with respx.mock:
+        respx.post(url__regex=r"https://generativelanguage\.googleapis\.com/.*").mock(
+            return_value=httpx.Response(
+                200,
+                headers={"Content-Type": "text/event-stream"},
+                text=gemini_sse,
+            )
+        )
+        stream_gen = await gemini_adapter.complete_stream(req)
+        chunks = [chunk async for chunk in stream_gen]
+
+        assert len(chunks) == 2
+        assert "Hello" in chunks[0]
+        assert "World!" in chunks[1]

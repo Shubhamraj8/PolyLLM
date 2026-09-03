@@ -36,3 +36,23 @@ class ChatResponse(BaseModel):
     choices: list[Choice]
     usage: UsageInfo
     x_gateway: GatewayMeta
+
+
+class DeltaMessage(BaseModel):
+    role: str | None = None
+    content: str | None = None
+
+
+class ChunkChoice(BaseModel):
+    index: int = 0
+    delta: DeltaMessage
+    finish_reason: str | None = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str
+    object: str = "chat.completion.chunk"
+    created: int
+    model: str
+    choices: list[ChunkChoice]
+    x_gateway: GatewayMeta | None = None

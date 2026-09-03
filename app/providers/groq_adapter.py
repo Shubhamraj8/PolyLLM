@@ -1,4 +1,5 @@
 import time
+from collections.abc import AsyncGenerator
 
 import httpx
 
@@ -28,7 +29,61 @@ class GroqAdapter(BaseProvider):
     async def complete(self, request: ChatRequest) -> ChatResponse:
         return await self._retry(self._do_complete)(request)
 
+    async def complete_stream(self, request: ChatRequest) -> AsyncGenerator[str, None]:
+        response = await self._retry(self._do_start_stream)(request)
+
+        async def _generator() -> AsyncGenerator[str, None]:
+            try:
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        yield f"{line}\n\n"
+            finally:
+                await response.aclose()
+
+        return _generator()
+
+    async def _do_start_stream(self, request: ChatRequest) -> httpx.Response:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = request.model_dump(exclude_none=True)
+        payload["stream"] = True
+
+        client = httpx.AsyncClient(timeout=self.timeout_config)
+        try:
+            req = client.build_request(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            response = await client.send(req, stream=True)
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
+            await client.aclose()
+            raise RetryableProviderError(f"Groq network error: {str(e)}")
+        except Exception:
+            await client.aclose()
+            raise
+
+        if response.status_code in (429, 500, 502, 503, 504):
+            await response.aclose()
+            raise RetryableProviderError(f"Groq retryable error: {response.text}")
+
+        if response.status_code in (400, 401, 403, 404):
+            await response.aclose()
+            raise NonRetryableProviderError(f"Groq non-retryable error: {response.text}")
+
+        if response.is_error:
+            await response.aclose()
+            response.raise_for_status()
+
+        return response
+
     async def _do_complete(self, request: ChatRequest) -> ChatResponse:
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
