@@ -159,6 +159,20 @@ async def test_api_admin_reload_requires_auth(async_client):
 
 
 @pytest.mark.asyncio
+async def test_api_admin_stats_endpoint(async_client):
+    headers = {"X-API-Key": "dev-key"}
+    r = await async_client.get("/admin/stats", headers=headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert "overview" in data
+    assert "circuit_breakers" in data
+    assert "cost_breakdown" in data
+    assert "recent_audits" in data
+    assert "config" in data
+
+
+
+@pytest.mark.asyncio
 async def test_api_models_endpoint(async_client):
     r = await async_client.get("/v1/models")
     assert r.status_code == 200

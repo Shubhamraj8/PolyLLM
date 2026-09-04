@@ -6,6 +6,7 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_client import make_asgi_app
 
@@ -145,6 +146,11 @@ def create_app() -> FastAPI:
     if settings.prometheus_enabled:
         metrics_app = make_asgi_app()
         app.mount("/metrics", metrics_app)
+
+    # Mount Dashboard Frontend (Must be last to avoid overriding API routes)
+    import os
+    if os.path.exists("dashboard/dist"):
+        app.mount("/", StaticFiles(directory="dashboard/dist", html=True), name="dashboard")
 
     return app
 
