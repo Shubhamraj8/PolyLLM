@@ -6,9 +6,12 @@
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7.4-DC382D?logo=redis&logoColor=white)
+[![Deploy to Render](https://img.shields.io/badge/Live%20on-Render-46E3B7?logo=render&logoColor=white)](https://polyllm.onrender.com)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 **A production-grade, OpenAI-compatible LLM gateway with multi-provider fallback routing, distributed circuit breakers, rate limiting, cost tracking, and full observability.**
+
+🌐 **Live Demo:** [https://polyllm.onrender.com](https://polyllm.onrender.com)
 
 </div>
 
@@ -170,8 +173,46 @@ docker-compose -f docker-compose.full.yml up --build -d
 | Service | URL |
 |---|---|
 | **Gateway API** | http://localhost:8000 |
+| **Admin Dashboard** | http://localhost:8000/ |
 | **Prometheus** | http://localhost:9090 |
 | **Grafana** | http://localhost:3000 |
+
+---
+
+## 🌐 Live Demo
+
+PolyLLM is deployed on Render and fully operational. Try it right now — no setup needed:
+
+**Admin Dashboard:**
+```
+https://polyllm.onrender.com/
+```
+
+**Health check:**
+```bash
+curl https://polyllm.onrender.com/health
+```
+
+**Chat completion (bring your own `GATEWAY_API_KEY`):**
+```bash
+curl -X POST https://polyllm.onrender.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $GATEWAY_API_KEY" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Explain circuit breakers in one sentence."}]
+  }'
+```
+
+**Streaming:**
+```bash
+curl -X POST https://polyllm.onrender.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $GATEWAY_API_KEY" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}], "stream": true}'
+```
+
+> **Note:** The free Render tier spins down after 15 minutes of inactivity. The first request may take ~30 seconds to cold-start.
 
 ---
 
@@ -481,9 +522,12 @@ PolyLLM/
 ├── monitoring/
 │   ├── prometheus.yml              # Scrape config
 │   └── grafana/                    # Dashboard provisioning
+├── dashboard/                      # React/Vite admin dashboard (bundled into FastAPI)
+│   └── src/components/             # Header, OverviewCards, CircuitBreakerCards,
+│                                   # AnalyticsCharts, AuditLogTable, ConfigPanel
 ├── config.yaml                     # Runtime gateway config (hot-reloadable)
 ├── .env.example                    # Required environment variables template
-├── Dockerfile                      # python:3.12-slim production image
+├── Dockerfile                      # Multi-stage: Node builds React → Python serves both
 ├── docker-compose.yml              # Dev: Redis + Prometheus + Grafana
 └── docker-compose.full.yml         # Full stack including gateway container
 ```
