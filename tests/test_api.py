@@ -171,7 +171,6 @@ async def test_api_admin_stats_endpoint(async_client):
     assert "config" in data
 
 
-
 @pytest.mark.asyncio
 async def test_api_models_endpoint(async_client):
     r = await async_client.get("/v1/models")

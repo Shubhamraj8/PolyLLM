@@ -149,6 +149,7 @@ def create_app() -> FastAPI:
 
     # Mount Dashboard Frontend (Must be last to avoid overriding API routes)
     import os
+
     if os.path.exists("dashboard/dist"):
         app.mount("/", StaticFiles(directory="dashboard/dist", html=True), name="dashboard")
 

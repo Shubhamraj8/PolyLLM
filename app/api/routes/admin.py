@@ -99,4 +99,3 @@ async def get_admin_stats(
             "timestamp": datetime.now(UTC).isoformat(),
         }
     )
-
